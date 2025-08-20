@@ -1,0 +1,24 @@
+services:
+  - type: cron
+    name: fantasy-bot-sun-afternoon
+    env: python
+    plan: free
+    schedule: "0 18-23 * * SUN"   # Sundays 1–6PM EST (18–23 UTC)
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python bot.py"
+
+  - type: cron
+    name: fantasy-bot-sun-late
+    env: python
+    plan: free
+    schedule: "0 0-3 * * MON"     # Sundays 7–10PM EST (Mon 0–3 UTC)
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python bot.py"
+
+  - type: cron
+    name: fantasy-bot-mon-night
+    env: python
+    plan: free
+    schedule: "0 1-3 * * TUE"     # Mondays 9–11PM EST (Tue 1–3 UTC)
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python bot.py"
