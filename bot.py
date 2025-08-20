@@ -1,81 +1,112 @@
 import os
-import statistics
-from datetime import datetime, time
-import pytz
+import time
 import requests
-from espn_api.football import League
-from dotenv import load_dotenv
+from datetime import datetime
+import pytz
 
-# Load local env for testing; Render will inject env vars itself
-load_dotenv()
+# ------------------------
+# Config
+# ------------------------
+BOT_ID = os.getenv("GROUPME_BOT_ID", "TEST_MODE")
 
-LEAGUE_ID = int(os.getenv("LEAGUE_ID"))
-YEAR = int(os.getenv("YEAR", "2025"))
-SWID = os.getenv("SWID")
-ESPN_S2 = os.getenv("ESPN_S2")
-GROUPME_BOT_ID = os.getenv("GROUPME_BOT_ID")
+# Replace these with your league settings
+LEAGUE_ID = os.getenv("ESPN_LEAGUE_ID", "123456")
+ESPN_S2 = os.getenv("ESPN_S2", "")
+SWID = os.getenv("ESPN_SWID", "")
 
-EASTERN = pytz.timezone("US/Eastern")
-
-# 👇 add this
-TEST_MODE = os.getenv("TEST_MODE", "false").lower() == "true"
-
-def within_post_window(now_eastern: datetime) -> bool:
-    if TEST_MODE:
-        return True  # always allow during testing
-    # Sundays 1:00 PM–11:59 PM ET
-    if now_eastern.weekday() == 6:
-        return time(13, 0) <= now_eastern.time() <= time(23, 59)
-    # Mondays 9:00 PM–11:59 PM ET
-    if now_eastern.weekday() == 0:
-        return time(21, 0) <= now_eastern.time() <= time(23, 59)
-    return False
-
-def post_to_groupme(text: str):
-    url = "https://api.groupme.com/v3/bots/post"
-    payload = {"bot_id": GROUPME_BOT_ID, "text": text}
-    r = requests.post(url, json=payload, timeout=10)
-    r.raise_for_status()
-
-def build_message() -> str:
-    if TEST_MODE:
-        return "✅ Test 1 2 3 — bot is posting to GroupMe!"
-
-    league = League(league_id=LEAGUE_ID, year=YEAR, espn_s2=ESPN_S2, swid=SWID)
-    matchups = league.scoreboard()
-    team_scores = []
-    for m in matchups:
-        team_scores.append((m.home_team.team_name, float(m.home_score)))
-        team_scores.append((m.away_team.team_name, float(m.away_score)))
-
-    if not team_scores:
-        return "No live matchups found right now."
-
-    scores_only = [s for _, s in team_scores]
-    median_score = statistics.median(scores_only)
-    team_scores.sort(key=lambda x: x[1], reverse=True)
-
-    lines = []
-    for name, score in team_scores:
-        mark = "✅" if score >= median_score else "❌"
-        lines.append(f"{name}: {score:.1f} {mark}")
-
-    now_eastern = datetime.now(EASTERN).strftime("%a %I:%M %p %Z")
-    header = f"📊 Live Fantasy Scores — {now_eastern}\nLeague Median: {median_score:.1f}\n"
-    return header + "\n" + "\n".join(lines)
-
-def main():
-    now_eastern = datetime.now(EASTERN)
-    if not within_post_window(now_eastern):
+# ------------------------
+# GroupMe Posting
+# ------------------------
+def post_message(msg):
+    """Send a message to GroupMe bot"""
+    if BOT_ID == "TEST_MODE":
+        print("[TEST MODE]", msg)
         return
-    try:
-        msg = build_message()
-        post_to_groupme(msg)
-    except Exception as e:
-        try:
-            post_to_groupme(f"Bot error: {e}")
-        except Exception:
-            pass
+    requests.post(
+        "https://api.groupme.com/v3/bots/post",
+        json={"bot_id": BOT_ID, "text": msg}
+    )
+
+# ------------------------
+# ESPN Data Fetch
+# ------------------------
+def fetch_scores():
+    """Fetch weekly scores from ESPN Fantasy API"""
+    url = f"https://fantasy.espn.com/apis/v3/games/ffl/seasons/2025/segments/0/leagues/{LEAGUE_ID}?view=mMatchup"
+    cookies = {"SWID": SWID, "espn_s2": ESPN_S2}
+    r = requests.get(url, cookies=cookies)
+    if r.status_code != 200:
+        print("Failed to fetch ESPN data")
+        return []
+
+    data = r.json()
+    scores = []
+    teams = {}
+
+    # Map teamId to teamName
+    for team in data.get("teams", []):
+        teams[team["id"]] = team["location"] + " " + team["nickname"]
+
+    # Current week matchups
+    for matchup in data.get("schedule", []):
+        if "home" in matchup and "away" in matchup:
+            home_id = matchup["home"]["teamId"]
+            away_id = matchup["away"]["teamId"]
+            home_score = matchup["home"].get("totalPoints", 0)
+            away_score = matchup["away"].get("totalPoints", 0)
+
+            scores.append((teams[home_id], home_score))
+            scores.append((teams[away_id], away_score))
+
+    return scores
+
+def median(scores):
+    """Compute median score"""
+    s = sorted(scores)
+    n = len(s)
+    if n == 0:
+        return 0
+    if n % 2 == 1:
+        return s[n // 2]
+    return (s[n // 2 - 1] + s[n // 2]) / 2
+
+# ------------------------
+# Main Bot Logic
+# ------------------------
+def run_update():
+    scores = fetch_scores()
+    if not scores:  # No scores available
+        post_message("Test 1 2 3 (no scores yet)")
+        return
+
+    score_values = [s for _, s in scores]
+    med = median(score_values)
+
+    msg_lines = ["🏈 Weekly Scores:"]
+    for team, score in scores:
+        status = "✅ Above Median" if score > med else "❌ Below Median"
+        msg_lines.append(f"{team}: {score} ({status})")
+
+    msg_lines.append(f"\nLeague Median: {med:.2f}")
+    post_message("\n".join(msg_lines))
+
+# ------------------------
+# Scheduler
+# ------------------------
+def check_and_post():
+    est = pytz.timezone("US/Eastern")
+    now = datetime.now(est)
+
+    # Sunday (6) 1PM–11:59PM
+    if now.weekday() == 6 and 13 <= now.hour <= 23:
+        run_update()
+    # Monday (0) 9PM–11:59PM
+    elif now.weekday() == 0 and 21 <= now.hour <= 23:
+        run_update()
+    else:
+        print("Not in update window, skipping...")
 
 if __name__ == "__main__":
-    main()
+    while True:
+        check_and_post()
+        time.sleep(60 * 60)  # sleep 1 hour
