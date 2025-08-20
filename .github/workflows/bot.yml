@@ -3,13 +3,11 @@ name: Fantasy Median Bot
 on:
   schedule:
     # Sundays every hour from 1PM–11PM EST
-    - cron: '0 18-23 * * 0'   # 1PM–6PM EST is 18–23 UTC
-    - cron: '0 0-3 * * 1'     # 7PM–11PM EST is 0–3 UTC (Monday UTC, but still Sunday EST)
-
+    - cron: '0 18-23 * * 0'
+    - cron: '0 0-3 * * 1'
     # Mondays every hour from 9PM–11PM EST
-    - cron: '0 1-3 * * 2'     # 9PM–11PM EST = 1–3 UTC on Tuesday
-
-  workflow_dispatch:  # allow manual trigger from GitHub UI
+    - cron: '0 1-3 * * 2'
+  workflow_dispatch:  # manual trigger
 
 jobs:
   run-bot:
@@ -32,8 +30,10 @@ jobs:
       - name: Run bot
         env:
           LEAGUE_ID: ${{ secrets.LEAGUE_ID }}
+          YEAR: ${{ secrets.YEAR }}
           SWID: ${{ secrets.SWID }}
           ESPN_S2: ${{ secrets.ESPN_S2 }}
           GROUPME_BOT_ID: ${{ secrets.GROUPME_BOT_ID }}
+          TEST_MODE: true   # optional for testing
         run: |
           python bot.py
