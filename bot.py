@@ -9,17 +9,22 @@ LEAGUE_ID = 2075760555
 YEAR = 2025
 SWID = "{AFDF1C35-C3FF-4E8F-AD85-63D85CCE88ED}"
 ESPN_S2 = "AECFFuqpnKkwgOlcCijqY71viRNLKIOsWVRu4cRQKbzfnIrJbf0jkAZ9x3csHAQz03U0D%2F9oCeXuchZVZa0M6Z4VQSYiFUwr7%2F5rrE1LZ6O6ySVeWsLC7xTsx%2FlDvw83DfRsffDlAaNdichxwCO2SY274IL0Cmlq68Ght9P8cekf4qid20hElhBWHC4KXdzVfPrh%2BX9tZIKqfxmtBtgC4Qf4m%2BueKsogUnTADTF672fbxy8G3LcurbepB1YLOehRokBXx9alTK3qS6b19hFlMOI5ch%2Bzaax2GIbYiitGkYDYXb%2B1Iatss9pwd1aSkt87XyI%3D"
-GROUPME_BOT_ID = "af76524cf43cc7b3216fd0de11"
+GROUPME_BOT_ID = "b63cecb7e82d210797808b6f11"
 TEST_MODE = True  # set False when you want live posts
 
 EASTERN = pytz.timezone("US/Eastern")
 
 def within_post_window(now_eastern: datetime) -> bool:
     if TEST_MODE:
-        return True
-    if now_eastern.weekday() == 6:
+        return True  # always allow during testing
+    # Sundays 1:00 PM–11:59 PM ET
+    if now_eastern.weekday() == 6:  # Sunday
         return time(13, 0) <= now_eastern.time() <= time(23, 59)
-    if now_eastern.weekday() == 0:
+    # Mondays 9:00 PM–11:59 PM ET
+    if now_eastern.weekday() == 0:  # Monday
+        return time(21, 0) <= now_eastern.time() <= time(23, 59)
+    # Thursdays 9:00 PM–11:59 PM ET
+    if now_eastern.weekday() == 3:  # Thursday
         return time(21, 0) <= now_eastern.time() <= time(23, 59)
     return False
 
@@ -31,7 +36,12 @@ def post_to_groupme(text: str):
 
 def build_message() -> str:
     if TEST_MODE:
-        return "✅ Test 1 2 3 — bot is posting to GroupMe!"
+        return """✅ Test 1 2 3 — I am a bot that will post the league scoreboard on this chat:
+📅 Thursday: every hour from 9:00 PM – 11:59 PM EST
+📅 Sunday: every hour from 1:00 PM – 11:59 PM EST
+📅 Monday: every hour from 9:00 PM – 11:59 PM EST
+
+At each timeframe, I’ll label which teams are above and below the league median."""
 
     league = League(league_id=LEAGUE_ID, year=YEAR, espn_s2=ESPN_S2, swid=SWID)
     matchups = league.scoreboard()
