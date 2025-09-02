@@ -1,10 +1,12 @@
 import statistics
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 import pytz
 import requests
 from espn_api.football import League
 
+# ----------------------------
 # Hard-coded config (safe in private repo)
+# ----------------------------
 LEAGUE_ID = 2075760555
 YEAR = 2025
 SWID = "{AFDF1C35-C3FF-4E8F-AD85-63D85CCE88ED}"
@@ -12,20 +14,42 @@ ESPN_S2 = "AECFFuqpnKkwgOlcCijqY71viRNLKIOsWVRu4cRQKbzfnIrJbf0jkAZ9x3csHAQz03U0D
 GROUPME_BOT_ID = "b63cecb7e82d210797808b6f11"
 TEST_MODE = False  # set False when you want live posts
 
+# ----------------------------
+# Timezone and schedule
+# ----------------------------
 EASTERN = pytz.timezone("US/Eastern")
+TOLERANCE_MINUTES = 3  # ±3 minute buffer
 
+SUNDAY_TIMES = [time(16, 0), time(20, 0), time(23, 30)]
+MONDAY_TIMES = [time(21, 30), time(22, 30), time(23, 59)]
+THURSDAY_TIMES = [time(23, 59)]
+
+# ----------------------------
+# Helper functions
+# ----------------------------
 def within_post_window(now_eastern: datetime) -> bool:
+    """Check if the current time is within TOLERANCE_MINUTES of a scheduled posting time."""
     if TEST_MODE:
-        return True  # always allow during testing
-    # Sundays 1:00 PM–11:59 PM ET
-    if now_eastern.weekday() == 6:  # Sunday
-        return time(13, 0) <= now_eastern.time() <= time(23, 59)
-    # Mondays 9:00 PM–11:59 PM ET
-    if now_eastern.weekday() == 0:  # Monday
-        return time(21, 0) <= now_eastern.time() <= time(23, 59)
-    # Thursdays 9:00 PM–11:59 PM ET
-    if now_eastern.weekday() == 3:  # Thursday
-        return time(21, 0) <= now_eastern.time() <= time(23, 59)
+        return True
+
+    current_time = now_eastern.time()
+    weekday = now_eastern.weekday()
+
+    if weekday == 6:  # Sunday
+        scheduled_times = SUNDAY_TIMES
+    elif weekday == 0:  # Monday
+        scheduled_times = MONDAY_TIMES
+    elif weekday == 3:  # Thursday
+        scheduled_times = THURSDAY_TIMES
+    else:
+        return False
+
+    for sched in scheduled_times:
+        lower = (datetime.combine(now_eastern.date(), sched) - timedelta(minutes=TOLERANCE_MINUTES)).time()
+        upper = (datetime.combine(now_eastern.date(), sched) + timedelta(minutes=TOLERANCE_MINUTES)).time()
+        if lower <= current_time <= upper:
+            return True
+
     return False
 
 def post_to_groupme(text: str):
@@ -37,15 +61,16 @@ def post_to_groupme(text: str):
 def build_message() -> str:
     if TEST_MODE:
         return """✅ Test 1 2 3 — I am a bot that will post the league scoreboard on this chat:
-📅 Thursday: every hour from 9:00 PM – 11:59 PM EST
-📅 Sunday: every hour from 1:00 PM – 11:59 PM EST
-📅 Monday: every hour from 9:00 PM – 11:59 PM EST
+📅 Thursday: 11:59 PM EST
+📅 Sunday: 4:00 PM, 8:00 PM, 11:30 PM EST
+📅 Monday: 9:30 PM, 10:30 PM, 11:59 PM EST
 
 At each timeframe, I’ll label which teams are above and below the league median."""
 
     league = League(league_id=LEAGUE_ID, year=YEAR, espn_s2=ESPN_S2, swid=SWID)
     matchups = league.scoreboard()
     team_scores = []
+
     for m in matchups:
         team_scores.append((m.home_team.team_name, float(m.home_score)))
         team_scores.append((m.away_team.team_name, float(m.away_score)))
@@ -62,10 +87,13 @@ At each timeframe, I’ll label which teams are above and below the league media
         mark = "✅" if score >= median_score else "❌"
         lines.append(f"{name}: {score:.1f} {mark}")
 
-    now_eastern = datetime.now(EASTERN).strftime("%a %I:%M %p %Z")
-    header = f"📊 Live Fantasy Scores — {now_eastern}\nLeague Median: {median_score:.1f}\n"
+    now_eastern_str = datetime.now(EASTERN).strftime("%a %I:%M %p %Z")
+    header = f"📊 Live Fantasy Scores — {now_eastern_str}\nLeague Median: {median_score:.1f}\n"
     return header + "\n" + "\n".join(lines)
 
+# ----------------------------
+# Main bot loop
+# ----------------------------
 def main():
     now_eastern = datetime.now(EASTERN)
     if not within_post_window(now_eastern):
