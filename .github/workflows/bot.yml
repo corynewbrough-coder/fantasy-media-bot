@@ -1,10 +1,21 @@
-name: Fantasy Bot Scheduler
+name: Fantasy Median Bot
 
 on:
+  # Scheduled runs (cron in UTC)
   schedule:
-    # Run every minute
-    - cron: "*/1 * * * *"
-  workflow_dispatch: # allows manual trigger
+    # Sundays: 10:00 AM, 4:00 PM, 8:00 PM, 11:30 PM EST
+    - cron: '14 15 * * 0'   # 10:00 AM EST -> 14:00 UTC (Standard) / adjust for DST if needed
+    - cron: '21 20 * * 0'   # 4:00 PM EST -> 21:00 UTC
+    - cron: '01 00 * * 0'   # 8:00 PM EST -> 00:00 UTC (next day)
+    - cron: '30 04 * * 1'   # 11:30 PM EST -> 04:30 UTC Monday
+    # Mondays: 9:30 PM, 10:30 PM, 11:59 PM EST
+    - cron: '02 02 * * 2'   # 9:30 PM EST -> 02:30 UTC Tuesday
+    - cron: '30 03 * * 2'   # 10:30 PM EST -> 03:30 UTC Tuesday
+    - cron: '59 04 * * 2'   # 11:59 PM EST -> 04:59 UTC Tuesday
+    # Thursdays: 11:59 PM EST
+    - cron: '59 04 * * 5'   # 11:59 PM EST Thursday -> 04:59 UTC Friday
+
+  workflow_dispatch: # Allow manual trigger
 
 jobs:
   run-bot:
@@ -16,12 +27,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests pytz espn-api
 
-      - name: Run bot
+      - name: Run Fantasy Median Bot
         run: python bot.py
