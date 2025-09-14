@@ -12,7 +12,7 @@ YEAR = 2025
 SWID = "{AFDF1C35-C3FF-4E8F-AD85-63D85CCE88ED}"
 ESPN_S2 = "AECFFuqpnKkwgOlcCijqY71viRNLKIOsWVRu4cRQKbzfnIrJbf0jkAZ9x3csHAQz03U0D%2F9oCeXuchZVZa0M6Z4VQSYiFUwr7%2F5rrE1LZ6O6ySVeWsLC7xTsx%2FlDvw83DfRsffDlAaNdichxwCO2SY274IL0Cmlq68Ght9P8cekf4qid20hElhBWHC4KXdzVfPrh%2BX9tZIKqfxmtBtgC4Qf4m%2BueKsogUnTADTF672fbxy8G3LcurbepB1YLOehRokBXx9alTK3qS6b19hFlMOI5ch%2Bzaax2GIbYiitGkYDYXb%2B1Iatss9pwd1aSkt87XyI%3D"
 GROUPME_BOT_ID = "b63cecb7e82d210797808b6f11"
-TEST_MODE = TRUE  # set False when you want live posts
+TEST_MODE = True  # set False when you want live posts
 
 # ----------------------------
 # Timezone and schedule
