@@ -24,4 +24,4 @@ jobs:
           pip install requests pytz espn-api
 
       - name: Run bot
-        run: python league_history.py
+        run: python bot.py
