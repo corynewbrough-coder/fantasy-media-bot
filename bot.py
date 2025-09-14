@@ -18,7 +18,7 @@ TEST_MODE = False  # keep False to post real scoreboard
 # Timezone and schedule
 # ----------------------------
 EASTERN = pytz.timezone("US/Eastern")
-TOLERANCE_MINUTES = 3  # ±3 minute buffer
+TOLERANCE_MINUTES = 15  # ±3 minute buffer
 
 SUNDAY_TIMES = [time(10, 0), time(16, 0), time(20, 0), time(23, 30)]
 MONDAY_TIMES = [time(21, 30), time(22, 30), time(23, 59)]
