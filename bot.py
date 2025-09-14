@@ -5,20 +5,20 @@ import requests
 from espn_api.football import League
 
 # ----------------------------
-# Hard-coded config (safe in private repo)
+# Config (safe in private repo)
 # ----------------------------
 LEAGUE_ID = 2075760555
 YEAR = 2025
 SWID = "{AFDF1C35-C3FF-4E8F-AD85-63D85CCE88ED}"
 ESPN_S2 = "AECFFuqpnKkwgOlcCijqY71viRNLKIOsWVRu4cRQKbzfnIrJbf0jkAZ9x3csHAQz03U0D%2F9oCeXuchZVZa0M6Z4VQSYiFUwr7%2F5rrE1LZ6O6ySVeWsLC7xTsx%2FlDvw83DfRsffDlAaNdichxwCO2SY274IL0Cmlq68Ght9P8cekf4qid20hElhBWHC4KXdzVfPrh%2BX9tZIKqfxmtBtgC4Qf4m%2BueKsogUnTADTF672fbxy8G3LcurbepB1YLOehRokBXx9alTK3qS6b19hFlMOI5ch%2Bzaax2GIbYiitGkYDYXb%2B1Iatss9pwd1aSkt87XyI%3D"
 GROUPME_BOT_ID = "b63cecb7e82d210797808b6f11"
-TEST_MODE = False  # keep False to post real scoreboard
+TEST_MODE = False  # True = test mode, False = live posts
 
 # ----------------------------
-# Timezone and schedule
+# Timezone & schedule
 # ----------------------------
 EASTERN = pytz.timezone("US/Eastern")
-TOLERANCE_MINUTES = 15  # ±3 minute buffer
+TOLERANCE_MINUTES = 3
 
 SUNDAY_TIMES = [time(10, 0), time(16, 0), time(20, 0), time(23, 30)]
 MONDAY_TIMES = [time(21, 30), time(22, 30), time(23, 59)]
@@ -28,18 +28,18 @@ THURSDAY_TIMES = [time(23, 59)]
 # Helper functions
 # ----------------------------
 def within_post_window(now_eastern: datetime) -> bool:
-    """Check if the current time is within TOLERANCE_MINUTES of a scheduled posting time."""
+    """Check if current time is within ±TOLERANCE_MINUTES of a scheduled posting time."""
     if TEST_MODE:
         return True
 
     current_time = now_eastern.time()
     weekday = now_eastern.weekday()
 
-    if weekday == 6:  # Sunday
+    if weekday == 6:
         scheduled_times = SUNDAY_TIMES
-    elif weekday == 0:  # Monday
+    elif weekday == 0:
         scheduled_times = MONDAY_TIMES
-    elif weekday == 3:  # Thursday
+    elif weekday == 3:
         scheduled_times = THURSDAY_TIMES
     else:
         return False
@@ -49,7 +49,6 @@ def within_post_window(now_eastern: datetime) -> bool:
         upper = (datetime.combine(now_eastern.date(), sched) + timedelta(minutes=TOLERANCE_MINUTES)).time()
         if lower <= current_time <= upper:
             return True
-
     return False
 
 def post_to_groupme(text: str):
@@ -58,17 +57,24 @@ def post_to_groupme(text: str):
     r = requests.post(url, json=payload, timeout=10)
     r.raise_for_status()
 
-def build_message() -> str:
-    league = League(league_id=LEAGUE_ID, year=YEAR, espn_s2=ESPN_S2, swid=SWID)
-    matchups = league.scoreboard()
-    team_scores = []
+def fetch_scores(league: League, projected: bool = False):
+    """Fetch scores or projected scores from the league."""
+    current_week = league.current_week
+    matchups = league.scoreboard(week=current_week)
 
+    scores = []
     for m in matchups:
-        team_scores.append((m.home_team.team_name, float(m.home_score)))
-        team_scores.append((m.away_team.team_name, float(m.away_score)))
+        if projected:
+            scores.append((m.home_team.team_name, float(m.home_projected_score)))
+            scores.append((m.away_team.team_name, float(m.away_projected_score)))
+        else:
+            scores.append((m.home_team.team_name, float(m.home_score)))
+            scores.append((m.away_team.team_name, float(m.away_score)))
+    return scores
 
+def format_scores(team_scores):
     if not team_scores:
-        return "No live matchups found right now."
+        return "No matchups found."
 
     scores_only = [s for _, s in team_scores]
     median_score = statistics.median(scores_only)
@@ -78,27 +84,54 @@ def build_message() -> str:
     for name, score in team_scores:
         mark = "✅" if score >= median_score else "❌"
         lines.append(f"{name}: {score:.1f} {mark}")
+    return median_score, "\n".join(lines)
+
+def build_message() -> str:
+    league = League(league_id=LEAGUE_ID, year=YEAR, espn_s2=ESPN_S2, swid=SWID)
+
+    # Current scores
+    current_scores = fetch_scores(league, projected=False)
+    current_median, current_text = format_scores(current_scores)
+
+    # Projected scores
+    projected_scores = fetch_scores(league, projected=True)
+    projected_median, projected_text = format_scores(projected_scores)
 
     now_eastern_str = datetime.now(EASTERN).strftime("%a %I:%M %p %Z")
-    header = f"📊 Live Fantasy Scores — {now_eastern_str}\nLeague Median: {median_score:.1f}\n"
-    return header + "\n" + "\n".join(lines)
+    message = (
+        f"📊 Fantasy Scores — {now_eastern_str}\n\n"
+        f"🏈 Current Scores (Median: {current_median:.1f})\n"
+        f"{current_text}\n\n"
+        f"🔮 Projected Scores (Median: {projected_median:.1f})\n"
+        f"{projected_text}"
+    )
+
+    return message
 
 # ----------------------------
-# Main bot loop
+# Main bot
 # ----------------------------
-def main(force_post=False):
+def main():
     now_eastern = datetime.now(EASTERN)
-    if not force_post and not within_post_window(now_eastern):
+    if not within_post_window(now_eastern):
+        print("Outside posting window. Exiting.")
         return
+
     try:
         msg = build_message()
-        post_to_groupme(msg)
+        if TEST_MODE:
+            print("=== Test Mode ===")
+            print(msg)
+        else:
+            post_to_groupme(msg)
+            print("Message posted successfully.")
     except Exception as e:
-        try:
-            post_to_groupme(f"Bot error: {e}")
-        except Exception:
-            pass
+        print(f"Bot error: {e}")
+        if not TEST_MODE:
+            try:
+                post_to_groupme(f"Bot error: {e}")
+            except Exception:
+                pass
 
 if __name__ == "__main__":
-    # Set force_post=True to manually trigger posting regardless of window
-    main(force_post=True)
+    main()
