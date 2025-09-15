@@ -7,22 +7,22 @@ from espn_api.football import League
 # ----------------------------
 # Config (safe in private repo)
 # ----------------------------
-LEAGUE_ID = 2075760555
-YEAR = 2025
-SWID = "{AFDF1C35-C3FF-4E8F-AD85-63D85CCE88ED}"
+LEAGUE_ID = 2075760555       # your ESPN league ID
+YEAR = 2025                  # season year
+SWID = "{AFDF1C35-C3FF-4E8F-AD85-63D85CCE88ED}"   # from ESPN cookies
 ESPN_S2 = "AECFFuqpnKkwgOlcCijqY71viRNLKIOsWVRu4cRQKbzfnIrJbf0jkAZ9x3csHAQz03U0D%2F9oCeXuchZVZa0M6Z4VQSYiFUwr7%2F5rrE1LZ6O6ySVeWsLC7xTsx%2FlDvw83DfRsffDlAaNdichxwCO2SY274IL0Cmlq68Ght9P8cekf4qid20hElhBWHC4KXdzVfPrh%2BX9tZIKqfxmtBtgC4Qf4m%2BueKsogUnTADTF672fbxy8G3LcurbepB1YLOehRokBXx9alTK3qS6b19hFlMOI5ch%2Bzaax2GIbYiitGkYDYXb%2B1Iatss9pwd1aSkt87XyI%3D"
 GROUPME_BOT_ID = "b63cecb7e82d210797808b6f11"
 
 # Control flags
-TEST_MODE = False       # True = print to console, False = post to GroupMe
+TEST_MODE = False       # True = print only, don’t post to GroupMe
 FORCE_POST = True       # True = ignore posting window (manual tests)
-FORCE_WEEK = 2          # e.g. 2 → force week 2, or None → auto-detect
+FORCE_WEEK = 2          # Set week manually (None = auto-detect)
 
 # ----------------------------
 # Timezone & schedule
 # ----------------------------
 EASTERN = pytz.timezone("US/Eastern")
-TOLERANCE_MINUTES = 3
+TOLERANCE_MINUTES = 15
 
 SUNDAY_TIMES = [time(10, 0), time(16, 0), time(20, 0), time(23, 30)]
 MONDAY_TIMES = [time(21, 30), time(22, 30), time(23, 59)]
@@ -61,32 +61,26 @@ def post_to_groupme(text: str):
     r = requests.post(url, json=payload, timeout=10)
     r.raise_for_status()
 
-def get_team_projection(team):
-    """Calculate projected points by summing each player's projected points."""
-    total = 0.0
-    for player in team.roster:
-        if hasattr(player, "projected_points") and player.projected_points is not None:
-            total += player.projected_points
-    return total
-
 def fetch_scores(league: League, projected: bool = False):
-    """Fetch scores or projected scores from the league."""
+    """
+    Fetch scores or projected scores from the league.
+    Uses team.scores and team.scores_proj instead of deprecated attributes.
+    """
     week = FORCE_WEEK if FORCE_WEEK is not None else league.current_week
     if not week:
         return []
 
     matchups = league.scoreboard(week=week)
-
     scores = []
+
     for m in matchups:
         if projected:
-            home_proj = get_team_projection(m.home_team)
-            away_proj = get_team_projection(m.away_team)
-            scores.append((m.home_team.team_name, float(home_proj)))
-            scores.append((m.away_team.team_name, float(away_proj)))
+            scores.append((m.home_team.team_name, float(m.home_team.scores_proj.get(week, 0))))
+            scores.append((m.away_team.team_name, float(m.away_team.scores_proj.get(week, 0))))
         else:
             scores.append((m.home_team.team_name, float(m.home_score)))
             scores.append((m.away_team.team_name, float(m.away_score)))
+
     return scores
 
 def format_scores(team_scores):
