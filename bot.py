@@ -16,7 +16,7 @@ GROUPME_BOT_ID = "b63cecb7e82d210797808b6f11"
 # Control flags
 TEST_MODE = False       # True = print to console, False = post to GroupMe
 FORCE_POST = True       # True = ignore posting window (manual tests)
-FORCE_WEEK = 2       # e.g. 2 → force week 2, or None → auto-detect
+FORCE_WEEK = 2          # e.g. 2 → force week 2, or None → auto-detect
 
 # ----------------------------
 # Timezone & schedule
@@ -72,8 +72,8 @@ def fetch_scores(league: League, projected: bool = False):
     scores = []
     for m in matchups:
         if projected:
-            scores.append((m.home_team.team_name, float(m.home_projected_score)))
-            scores.append((m.away_team.team_name, float(m.away_projected_score)))
+            scores.append((m.home_team.team_name, float(m.home_team.projected_points)))
+            scores.append((m.away_team.team_name, float(m.away_team.projected_points)))
         else:
             scores.append((m.home_team.team_name, float(m.home_score)))
             scores.append((m.away_team.team_name, float(m.away_score)))
