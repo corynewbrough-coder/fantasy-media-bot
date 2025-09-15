@@ -5,24 +5,24 @@ import requests
 from espn_api.football import League
 
 # ----------------------------
-# Config (safe in private repo)
+# Config
 # ----------------------------
-LEAGUE_ID = 2075760555       # your ESPN league ID
-YEAR = 2025                  # season year
-SWID = "{AFDF1C35-C3FF-4E8F-AD85-63D85CCE88ED}"   # from ESPN cookies
+LEAGUE_ID = 2075760555
+YEAR = 2025
+SWID = "{AFDF1C35-C3FF-4E8F-AD85-63D85CCE88ED}"
 ESPN_S2 = "AECFFuqpnKkwgOlcCijqY71viRNLKIOsWVRu4cRQKbzfnIrJbf0jkAZ9x3csHAQz03U0D%2F9oCeXuchZVZa0M6Z4VQSYiFUwr7%2F5rrE1LZ6O6ySVeWsLC7xTsx%2FlDvw83DfRsffDlAaNdichxwCO2SY274IL0Cmlq68Ght9P8cekf4qid20hElhBWHC4KXdzVfPrh%2BX9tZIKqfxmtBtgC4Qf4m%2BueKsogUnTADTF672fbxy8G3LcurbepB1YLOehRokBXx9alTK3qS6b19hFlMOI5ch%2Bzaax2GIbYiitGkYDYXb%2B1Iatss9pwd1aSkt87XyI%3D"
 GROUPME_BOT_ID = "b63cecb7e82d210797808b6f11"
 
 # Control flags
-TEST_MODE = False       # True = print only, don’t post to GroupMe
-FORCE_POST = True       # True = ignore posting window (manual tests)
-FORCE_WEEK = 2          # Set week manually (None = auto-detect)
+TEST_MODE = False
+FORCE_POST = True
+FORCE_WEEK = 2
 
 # ----------------------------
 # Timezone & schedule
 # ----------------------------
 EASTERN = pytz.timezone("US/Eastern")
-TOLERANCE_MINUTES = 15
+TOLERANCE_MINUTES = 3
 
 SUNDAY_TIMES = [time(10, 0), time(16, 0), time(20, 0), time(23, 30)]
 MONDAY_TIMES = [time(21, 30), time(22, 30), time(23, 59)]
@@ -32,7 +32,6 @@ THURSDAY_TIMES = [time(23, 59)]
 # Helper functions
 # ----------------------------
 def within_post_window(now_eastern: datetime) -> bool:
-    """Check if current time is within ±TOLERANCE_MINUTES of a scheduled posting time."""
     if TEST_MODE or FORCE_POST:
         return True
 
@@ -62,10 +61,7 @@ def post_to_groupme(text: str):
     r.raise_for_status()
 
 def fetch_scores(league: League, projected: bool = False):
-    """
-    Fetch scores or projected scores from the league.
-    Uses team.scores and team.scores_proj instead of deprecated attributes.
-    """
+    """Get either current or projected scores."""
     week = FORCE_WEEK if FORCE_WEEK is not None else league.current_week
     if not week:
         return []
@@ -75,8 +71,8 @@ def fetch_scores(league: League, projected: bool = False):
 
     for m in matchups:
         if projected:
-            scores.append((m.home_team.team_name, float(m.home_team.scores_proj.get(week, 0))))
-            scores.append((m.away_team.team_name, float(m.away_team.scores_proj.get(week, 0))))
+            scores.append((m.home_team.team_name, float(m.home_projected)))
+            scores.append((m.away_team.team_name, float(m.away_projected)))
         else:
             scores.append((m.home_team.team_name, float(m.home_score)))
             scores.append((m.away_team.team_name, float(m.away_score)))
@@ -111,15 +107,13 @@ def build_message() -> str:
     week = FORCE_WEEK if FORCE_WEEK is not None else league.current_week
     now_eastern_str = datetime.now(EASTERN).strftime("%a %I:%M %p %Z")
 
-    message = (
+    return (
         f"📊 Fantasy Scores — Week {week} — {now_eastern_str}\n\n"
         f"🏈 Current Scores (Median: {current_median:.1f})\n"
         f"{current_text}\n\n"
         f"🔮 Projected Scores (Median: {projected_median:.1f})\n"
         f"{projected_text}"
     )
-
-    return message
 
 # ----------------------------
 # Main bot
