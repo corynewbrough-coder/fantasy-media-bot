@@ -61,6 +61,14 @@ def post_to_groupme(text: str):
     r = requests.post(url, json=payload, timeout=10)
     r.raise_for_status()
 
+def get_team_projection(team):
+    """Calculate projected points by summing each player's projected points."""
+    total = 0.0
+    for player in team.roster:
+        if hasattr(player, "projected_points") and player.projected_points is not None:
+            total += player.projected_points
+    return total
+
 def fetch_scores(league: League, projected: bool = False):
     """Fetch scores or projected scores from the league."""
     week = FORCE_WEEK if FORCE_WEEK is not None else league.current_week
@@ -72,8 +80,10 @@ def fetch_scores(league: League, projected: bool = False):
     scores = []
     for m in matchups:
         if projected:
-            scores.append((m.home_team.team_name, float(m.home_team.projected_points)))
-            scores.append((m.away_team.team_name, float(m.away_team.projected_points)))
+            home_proj = get_team_projection(m.home_team)
+            away_proj = get_team_projection(m.away_team)
+            scores.append((m.home_team.team_name, float(home_proj)))
+            scores.append((m.away_team.team_name, float(away_proj)))
         else:
             scores.append((m.home_team.team_name, float(m.home_score)))
             scores.append((m.away_team.team_name, float(m.away_score)))
