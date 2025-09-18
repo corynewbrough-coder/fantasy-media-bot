@@ -61,23 +61,27 @@ def post_to_groupme(text: str):
     r.raise_for_status()
 
 def fetch_scores(league: League, projected: bool = False):
-    """Get either current or projected scores."""
+    """Get either current or projected scores using BoxScore objects (supports projections)."""
     week = FORCE_WEEK if FORCE_WEEK is not None else league.current_week
     if not week:
         return []
 
-    matchups = league.scoreboard(week=week)
-    scores = []
-
-    for m in matchups:
+    team_scores = []
+    # BoxScore has both live and projected fields
+    for b in league.box_scores(week=week):
         if projected:
-            scores.append((m.home_team.team_name, float(m.home_projected)))
-            scores.append((m.away_team.team_name, float(m.away_projected)))
+            # Projections can be None early—coerce to 0.0 safely
+            h = float(b.home_projected or 0.0)
+            a = float(b.away_projected or 0.0)
         else:
-            scores.append((m.home_team.team_name, float(m.home_score)))
-            scores.append((m.away_team.team_name, float(m.away_score)))
+            h = float(b.home_score or 0.0)
+            a = float(b.away_score or 0.0)
 
-    return scores
+        # Team names live on the same object as scoreboard
+        team_scores.append((b.home_team.team_name, h))
+        team_scores.append((b.away_team.team_name, a))
+
+    return team_scores
 
 def format_scores(team_scores):
     if not team_scores:
