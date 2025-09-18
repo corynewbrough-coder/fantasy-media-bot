@@ -13,16 +13,16 @@ SWID = "{AFDF1C35-C3FF-4E8F-AD85-63D85CCE88ED}"
 ESPN_S2 = "AECFFuqpnKkwgOlcCijqY71viRNLKIOsWVRu4cRQKbzfnIrJbf0jkAZ9x3csHAQz03U0D%2F9oCeXuchZVZa0M6Z4VQSYiFUwr7%2F5rrE1LZ6O6ySVeWsLC7xTsx%2FlDvw83DfRsffDlAaNdichxwCO2SY274IL0Cmlq68Ght9P8cekf4qid20hElhBWHC4KXdzVfPrh%2BX9tZIKqfxmtBtgC4Qf4m%2BueKsogUnTADTF672fbxy8G3LcurbepB1YLOehRokBXx9alTK3qS6b19hFlMOI5ch%2Bzaax2GIbYiitGkYDYXb%2B1Iatss9pwd1aSkt87XyI%3D"
 GROUPME_BOT_ID = "b63cecb7e82d210797808b6f11"
 
-# Control flags
+# Control flags (prod)
 TEST_MODE = False
-FORCE_POST = True
-FORCE_WEEK = 2
+FORCE_POST = False      # leave False so the time gate filters duplicate cron runs
+FORCE_WEEK = None       # use the live/current week in-season
 
 # ----------------------------
 # Timezone & schedule
 # ----------------------------
 EASTERN = pytz.timezone("US/Eastern")
-TOLERANCE_MINUTES = 3
+TOLERANCE_MINUTES = 2
 
 SUNDAY_TIMES = [time(10, 0), time(16, 0), time(20, 0), time(23, 30)]
 MONDAY_TIMES = [time(21, 30), time(22, 30), time(23, 59)]
@@ -32,25 +32,28 @@ THURSDAY_TIMES = [time(23, 59)]
 # Helper functions
 # ----------------------------
 def within_post_window(now_eastern: datetime) -> bool:
-    if TEST_MODE or FORCE_POST:
+    if TEST_MODE:
         return True
 
-    current_time = now_eastern.time()
-    weekday = now_eastern.weekday()
+    # If you ever want "force means always post", uncomment the next line:
+    # if FORCE_POST: return True
 
-    if weekday == 6:
+    weekday = now_eastern.weekday()  # Mon=0 ... Sun=6
+    current_time = now_eastern.time()
+
+    if weekday == 6:      # Sunday
         scheduled_times = SUNDAY_TIMES
-    elif weekday == 0:
+    elif weekday == 0:    # Monday
         scheduled_times = MONDAY_TIMES
-    elif weekday == 3:
+    elif weekday == 3:    # Thursday
         scheduled_times = THURSDAY_TIMES
     else:
         return False
 
     for sched in scheduled_times:
-        lower = (datetime.combine(now_eastern.date(), sched) - timedelta(minutes=TOLERANCE_MINUTES)).time()
-        upper = (datetime.combine(now_eastern.date(), sched) + timedelta(minutes=TOLERANCE_MINUTES)).time()
-        if lower <= current_time <= upper:
+        lower_dt = datetime.combine(now_eastern.date(), sched) - timedelta(minutes=TOLERANCE_MINUTES)
+        upper_dt = datetime.combine(now_eastern.date(), sched) + timedelta(minutes=TOLERANCE_MINUTES)
+        if lower_dt.time() <= current_time <= upper_dt.time():
             return True
     return False
 
@@ -67,17 +70,14 @@ def fetch_scores(league: League, projected: bool = False):
         return []
 
     team_scores = []
-    # BoxScore has both live and projected fields
     for b in league.box_scores(week=week):
         if projected:
-            # Projections can be None early—coerce to 0.0 safely
             h = float(b.home_projected or 0.0)
             a = float(b.away_projected or 0.0)
         else:
             h = float(b.home_score or 0.0)
             a = float(b.away_score or 0.0)
 
-        # Team names live on the same object as scoreboard
         team_scores.append((b.home_team.team_name, h))
         team_scores.append((b.away_team.team_name, a))
 
@@ -100,11 +100,9 @@ def format_scores(team_scores):
 def build_message() -> str:
     league = League(league_id=LEAGUE_ID, year=YEAR, espn_s2=ESPN_S2, swid=SWID)
 
-    # Current scores
     current_scores = fetch_scores(league, projected=False)
     current_median, current_text = format_scores(current_scores)
 
-    # Projected scores
     projected_scores = fetch_scores(league, projected=True)
     projected_median, projected_text = format_scores(projected_scores)
 
