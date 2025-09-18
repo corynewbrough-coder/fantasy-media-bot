@@ -1,31 +1,50 @@
 name: Fantasy Median Bot
 
 on:
-  # Scheduled runs (cron in UTC)
   schedule:
-    # Sundays: 10:00 AM, 4:00 PM, 8:00 PM, 11:30 PM EST
-    - cron: '14 15 * * 0'   # 10:00 AM EST -> 14:00 UTC (Standard) / adjust for DST if needed
-    - cron: '21 20 * * 0'   # 4:00 PM EST -> 21:00 UTC
-    - cron: '01 00 * * 0'   # 8:00 PM EST -> 00:00 UTC (next day)
-    - cron: '30 04 * * 1'   # 11:30 PM EST -> 04:30 UTC Monday
-    # Mondays: 9:30 PM, 10:30 PM, 11:59 PM EST
-    - cron: '02 02 * * 2'   # 9:30 PM EST -> 02:30 UTC Tuesday
-    - cron: '30 03 * * 2'   # 10:30 PM EST -> 03:30 UTC Tuesday
-    - cron: '59 04 * * 2'   # 11:59 PM EST -> 04:59 UTC Tuesday
-    # Thursdays: 11:59 PM EST
-    - cron: '59 04 * * 5'   # 11:59 PM EST Thursday -> 04:59 UTC Friday
+    # SUNDAYS — 10:00 AM ET
+    - cron: '0 14 * * 0'   # 10:00 AM EDT (UTC-4)
+    - cron: '0 15 * * 0'   # 10:00 AM EST (UTC-5)
 
-  workflow_dispatch: # Allow manual trigger
+    # SUNDAYS — 4:00 PM ET
+    - cron: '0 20 * * 0'   # 4:00 PM EDT
+    - cron: '0 21 * * 0'   # 4:00 PM EST
+
+    # SUNDAYS — 8:00 PM ET  -> Monday UTC
+    - cron: '0 0 * * 1'    # 8:00 PM EDT (Mon 00:00 UTC)
+    - cron: '0 1 * * 1'    # 8:00 PM EST (Mon 01:00 UTC)
+
+    # SUNDAYS — 11:30 PM ET -> Monday UTC
+    - cron: '30 3 * * 1'   # 11:30 PM EDT (Mon 03:30 UTC)
+    - cron: '30 4 * * 1'   # 11:30 PM EST (Mon 04:30 UTC)
+
+    # MONDAYS — 9:30 PM ET  -> Tuesday UTC
+    - cron: '30 1 * * 2'   # 9:30 PM EDT (Tue 01:30 UTC)
+    - cron: '30 2 * * 2'   # 9:30 PM EST (Tue 02:30 UTC)
+
+    # MONDAYS — 10:30 PM ET -> Tuesday UTC
+    - cron: '30 2 * * 2'   # 10:30 PM EDT (Tue 02:30 UTC)
+    - cron: '30 3 * * 2'   # 10:30 PM EST (Tue 03:30 UTC)
+
+    # MONDAYS — 11:59 PM ET -> Tuesday UTC
+    - cron: '59 3 * * 2'   # 11:59 PM EDT (Tue 03:59 UTC)
+    - cron: '59 4 * * 2'   # 11:59 PM EST (Tue 04:59 UTC)
+
+    # THURSDAYS — 11:59 PM ET -> Friday UTC
+    - cron: '59 3 * * 5'   # 11:59 PM EDT (Fri 03:59 UTC)
+    - cron: '59 4 * * 5'   # 11:59 PM EST (Fri 04:59 UTC)
+
+  workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
