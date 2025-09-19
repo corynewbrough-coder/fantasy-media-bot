@@ -78,30 +78,59 @@ def fetch_scores(league: League, projected: bool = False):
 
     return week, team_scores
 
-def format_scores(team_scores):
+import statistics
+
+def format_current_scores(team_scores):
+    """Current/live scores:
+       - If 6+ zeros: median=0.0 and ✅ means score > 0
+       - Else: median computed from non-zero scores; 0 is below-median
+    """
     if not team_scores:
-        return 0, "No matchups found."
+        return 0.0, "No matchups found."
 
-    # Prefer a non-zero median if there is at least one non-zero score
-    scores_only = [s for _, s in team_scores]
-    if any(s > 0 for s in scores_only):
-        usable_scores = [s for s in scores_only if s > 0]
+    scores = [s for _, s in team_scores]
+    zero_count = sum(1 for s in scores if s == 0)
+    total = len(scores)
+
+    # Zero-heavy slate: half or more of teams at zero, or explicitly >=6
+    zero_heavy = zero_count >= 6 or zero_count >= total / 2
+
+    team_scores_sorted = sorted(team_scores, key=lambda x: x[1], reverse=True)
+
+    if zero_heavy:
+        median_score = 0.0
+        lines = []
+        for name, score in team_scores_sorted:
+            mark = "✅" if score > 0 else "❌"
+            lines.append(f"{name}: {score:.1f} {mark}")
+        return median_score, "\n".join(lines)
     else:
-        usable_scores = scores_only
+        # Use non-zero scores to compute a more meaningful median
+        non_zero = [s for s in scores if s > 0]
+        usable = non_zero if non_zero else scores  # fallback if somehow all zero
+        median_score = statistics.median(usable)
 
-    median_score = statistics.median(usable_scores)
+        lines = []
+        for name, score in team_scores_sorted:
+            # Treat 0 as below-median when median > 0
+            mark = "✅" if (score >= median_score and (median_score == 0 or score > 0)) else "❌"
+            lines.append(f"{name}: {score:.1f} {mark}")
+        return median_score, "\n".join(lines)
 
-    # Sort for display
-    team_scores.sort(key=lambda x: x[1], reverse=True)
+
+def format_projected_scores(team_scores):
+    """Projected scores: standard median of all values."""
+    if not team_scores:
+        return 0.0, "No matchups found."
+    scores_only = [s for _, s in team_scores]
+    median_score = statistics.median(scores_only)
+    team_scores_sorted = sorted(team_scores, key=lambda x: x[1], reverse=True)
 
     lines = []
-    for name, score in team_scores:
-        # If median > 0, zero scores should be below-median (❌)
-        mark = "✅" if score >= median_score and (median_score == 0 or score > 0) else "❌"
+    for name, score in team_scores_sorted:
+        mark = "✅" if score >= median_score else "❌"
         lines.append(f"{name}: {score:.1f} {mark}")
-
     return median_score, "\n".join(lines)
-
 
 def build_message() -> str:
     league = League(league_id=LEAGUE_ID, year=YEAR, espn_s2=ESPN_S2, swid=SWID)
