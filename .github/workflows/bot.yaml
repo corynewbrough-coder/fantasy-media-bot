@@ -10,7 +10,7 @@ on:
     - cron: '0 20 * * 0'   # 4:00 PM EDT
     - cron: '0 21 * * 0'   # 4:00 PM EST
 
-    # SUNDAYS — 8:00 PM ET  -> Monday UTC
+    # SUNDAYS — 8:00 PM ET -> Monday UTC
     - cron: '0 0 * * 1'    # 8:00 PM EDT (Mon 00:00 UTC)
     - cron: '0 1 * * 1'    # 8:00 PM EST (Mon 01:00 UTC)
 
@@ -18,12 +18,12 @@ on:
     - cron: '30 3 * * 1'   # 11:30 PM EDT (Mon 03:30 UTC)
     - cron: '30 4 * * 1'   # 11:30 PM EST (Mon 04:30 UTC)
 
-    # MONDAYS — 9:30 PM ET  -> Tuesday UTC
+    # MONDAYS — 9:30 PM ET -> Tuesday UTC
     - cron: '30 1 * * 2'   # 9:30 PM EDT (Tue 01:30 UTC)
-    - cron: '30 2 * * 2'   # 9:30 PM EST (Tue 02:30 UTC)
+    # (EDT for 10:30 PM equals EST for 9:30 PM; covered below by 30 2 * * 2)
 
     # MONDAYS — 10:30 PM ET -> Tuesday UTC
-    - cron: '30 2 * * 2'   # 10:30 PM EDT (Tue 02:30 UTC)
+    - cron: '30 2 * * 2'   # 10:30 PM EDT (or 9:30 PM EST)
     - cron: '30 3 * * 2'   # 10:30 PM EST (Tue 03:30 UTC)
 
     # MONDAYS — 11:59 PM ET -> Tuesday UTC
