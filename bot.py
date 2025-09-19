@@ -1,11 +1,14 @@
+import os
+import time
 import statistics
-from datetime import datetime, time, timedelta
+import traceback
+from datetime import datetime
 import pytz
 import requests
 from espn_api.football import League
 
 # ----------------------------
-# Config
+# Config (kept as literals, per your request)
 # ----------------------------
 LEAGUE_ID = 2075760555
 YEAR = 2025
@@ -13,61 +16,49 @@ SWID = "{AFDF1C35-C3FF-4E8F-AD85-63D85CCE88ED}"
 ESPN_S2 = "AECFFuqpnKkwgOlcCijqY71viRNLKIOsWVRu4cRQKbzfnIrJbf0jkAZ9x3csHAQz03U0D%2F9oCeXuchZVZa0M6Z4VQSYiFUwr7%2F5rrE1LZ6O6ySVeWsLC7xTsx%2FlDvw83DfRsffDlAaNdichxwCO2SY274IL0Cmlq68Ght9P8cekf4qid20hElhBWHC4KXdzVfPrh%2BX9tZIKqfxmtBtgC4Qf4m%2BueKsogUnTADTF672fbxy8G3LcurbepB1YLOehRokBXx9alTK3qS6b19hFlMOI5ch%2Bzaax2GIbYiitGkYDYXb%2B1Iatss9pwd1aSkt87XyI%3D"
 GROUPME_BOT_ID = "b63cecb7e82d210797808b6f11"
 
-# Control flags (prod)
-TEST_MODE = False
-FORCE_POST = False      # leave False so the time gate filters duplicate cron runs
-FORCE_WEEK = None       # use the live/current week in-season
+# Optional controls
+TEST_MODE = False          # If True, just print the message instead of posting
+FORCE_WEEK = None          # Set an int to override ESPN current_week (for testing)
 
 # ----------------------------
-# Timezone & schedule
+# Timezone (for display only)
 # ----------------------------
 EASTERN = pytz.timezone("US/Eastern")
-TOLERANCE_MINUTES = 2
-
-SUNDAY_TIMES = [time(10, 0), time(16, 0), time(20, 0), time(23, 30)]
-MONDAY_TIMES = [time(21, 30), time(22, 30), time(23, 59)]
-THURSDAY_TIMES = [time(23, 59)]
 
 # ----------------------------
-# Helper functions
+# Helpers
 # ----------------------------
-def within_post_window(now_eastern: datetime) -> bool:
-    if TEST_MODE:
-        return True
+def _mask(s: str, show=6) -> str:
+    """Mask long tokens in logs."""
+    if not s:
+        return "<empty>"
+    return s[:show] + "…" if len(s) > show else s
 
-    # If you ever want "force means always post", uncomment the next line:
-    # if FORCE_POST: return True
-
-    weekday = now_eastern.weekday()  # Mon=0 ... Sun=6
-    current_time = now_eastern.time()
-
-    if weekday == 6:      # Sunday
-        scheduled_times = SUNDAY_TIMES
-    elif weekday == 0:    # Monday
-        scheduled_times = MONDAY_TIMES
-    elif weekday == 3:    # Thursday
-        scheduled_times = THURSDAY_TIMES
-    else:
-        return False
-
-    for sched in scheduled_times:
-        lower_dt = datetime.combine(now_eastern.date(), sched) - timedelta(minutes=TOLERANCE_MINUTES)
-        upper_dt = datetime.combine(now_eastern.date(), sched) + timedelta(minutes=TOLERANCE_MINUTES)
-        if lower_dt.time() <= current_time <= upper_dt.time():
-            return True
-    return False
-
-def post_to_groupme(text: str):
+def post_to_groupme(text: str, retries: int = 2, backoff: float = 1.5):
+    """Post a message to GroupMe with logging and tiny retry."""
     url = "https://api.groupme.com/v3/bots/post"
     payload = {"bot_id": GROUPME_BOT_ID, "text": text}
-    r = requests.post(url, json=payload, timeout=10)
-    r.raise_for_status()
+
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            r = requests.post(url, json=payload, timeout=10)
+            body_preview = (r.text or "")[:500]
+            print(f"[GroupMe] attempt={attempt} status={r.status_code} body={body_preview!r}")
+            r.raise_for_status()
+            return
+        except Exception as e:
+            print(f"[GroupMe] attempt={attempt} error: {type(e).__name__}: {e}")
+            if attempt > retries:
+                raise
+            time.sleep(backoff * attempt)
 
 def fetch_scores(league: League, projected: bool = False):
-    """Get either current or projected scores using BoxScore objects (supports projections)."""
+    """Get current or projected team scores using BoxScore objects."""
     week = FORCE_WEEK if FORCE_WEEK is not None else league.current_week
     if not week:
-        return []
+        return week, []
 
     team_scores = []
     for b in league.box_scores(week=week):
@@ -78,15 +69,18 @@ def fetch_scores(league: League, projected: bool = False):
             h = float(b.home_score or 0.0)
             a = float(b.away_score or 0.0)
 
-        team_scores.append((b.home_team.team_name, h))
-        team_scores.append((b.away_team.team_name, a))
+        # Team names
+        home_name = getattr(b.home_team, "team_name", "Home")
+        away_name = getattr(b.away_team, "team_name", "Away")
 
-    return team_scores
+        team_scores.append((home_name, h))
+        team_scores.append((away_name, a))
+
+    return week, team_scores
 
 def format_scores(team_scores):
     if not team_scores:
         return 0, "No matchups found."
-
     scores_only = [s for _, s in team_scores]
     median_score = statistics.median(scores_only)
     team_scores.sort(key=lambda x: x[1], reverse=True)
@@ -100,13 +94,18 @@ def format_scores(team_scores):
 def build_message() -> str:
     league = League(league_id=LEAGUE_ID, year=YEAR, espn_s2=ESPN_S2, swid=SWID)
 
-    current_scores = fetch_scores(league, projected=False)
-    current_median, current_text = format_scores(current_scores)
+    week_cur, current_scores = fetch_scores(league, projected=False)
+    week_proj, projected_scores = fetch_scores(league, projected=True)
 
-    projected_scores = fetch_scores(league, projected=True)
+    # Prefer whichever week we got (both should match)
+    week = week_cur or week_proj
+    if not week:
+        now_eastern_str = datetime.now(EASTERN).strftime("%a %I:%M %p %Z")
+        return f"📊 Fantasy Scores — {now_eastern_str}\n\nNo active week yet."
+
+    current_median, current_text = format_scores(current_scores)
     projected_median, projected_text = format_scores(projected_scores)
 
-    week = FORCE_WEEK if FORCE_WEEK is not None else league.current_week
     now_eastern_str = datetime.now(EASTERN).strftime("%a %I:%M %p %Z")
 
     return (
@@ -118,29 +117,31 @@ def build_message() -> str:
     )
 
 # ----------------------------
-# Main bot
+# Main
 # ----------------------------
 def main():
-    now_eastern = datetime.now(EASTERN)
-    if not within_post_window(now_eastern):
-        print("Outside posting window. Exiting.")
-        return
+    now_et = datetime.now(EASTERN)
+    print(
+        f"Start (ET)={now_et:%Y-%m-%d %I:%M:%S %p %Z}  "
+        f"BotID={_mask(GROUPME_BOT_ID)}  "
+        f"League={LEAGUE_ID}  Year={YEAR}  TEST_MODE={TEST_MODE}"
+    )
 
     try:
         msg = build_message()
         if TEST_MODE:
-            print("=== Test Mode ===")
-            print(msg)
+            print("=== Test Mode ===\n" + msg)
         else:
             post_to_groupme(msg)
             print("Message posted successfully.")
     except Exception as e:
-        print(f"Bot error: {e}")
+        err = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+        print(f"Bot error: {err}")
         if not TEST_MODE:
             try:
                 post_to_groupme(f"Bot error: {e}")
-            except Exception:
-                pass
+            except Exception as e2:
+                print(f"Also failed to notify GroupMe: {e2}")
 
 if __name__ == "__main__":
     main()
