@@ -24,8 +24,6 @@ jobs:
   run-bot:
     runs-on: ubuntu-latest
     env:
-      LEAGUE_ID: ${{ secrets.LEAGUE_ID }}
-      YEAR: ${{ secrets.YEAR }}
       SWID: ${{ secrets.ESPN_SWID }}
       ESPN_S2: ${{ secrets.ESPN_S2 }}
       GROUPME_BOT_ID: ${{ secrets.GROUPME_BOT_ID }}
