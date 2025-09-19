@@ -138,16 +138,13 @@ def build_message() -> str:
     week_cur, current_scores = fetch_scores(league, projected=False)
     week_proj, projected_scores = fetch_scores(league, projected=True)
 
-    # Prefer whichever week we got (both should match)
     week = week_cur or week_proj
+    now_eastern_str = datetime.now(EASTERN).strftime("%a %I:%M %p %Z")
     if not week:
-        now_eastern_str = datetime.now(EASTERN).strftime("%a %I:%M %p %Z")
         return f"📊 Fantasy Scores — {now_eastern_str}\n\nNo active week yet."
 
-    current_median, current_text = format_scores(current_scores)
-    projected_median, projected_text = format_scores(projected_scores)
-
-    now_eastern_str = datetime.now(EASTERN).strftime("%a %I:%M %p %Z")
+    current_median, current_text = format_current_scores(current_scores)
+    projected_median, projected_text = format_projected_scores(projected_scores)
 
     return (
         f"📊 Fantasy Scores — Week {week} — {now_eastern_str}\n\n"
