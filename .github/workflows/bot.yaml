@@ -43,3 +43,4 @@ jobs:
 
       - name: Run Fantasy Median Bot
         run: python bot.py
+
