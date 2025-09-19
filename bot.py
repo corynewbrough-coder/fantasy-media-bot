@@ -81,15 +81,27 @@ def fetch_scores(league: League, projected: bool = False):
 def format_scores(team_scores):
     if not team_scores:
         return 0, "No matchups found."
+
+    # Prefer a non-zero median if there is at least one non-zero score
     scores_only = [s for _, s in team_scores]
-    median_score = statistics.median(scores_only)
+    if any(s > 0 for s in scores_only):
+        usable_scores = [s for s in scores_only if s > 0]
+    else:
+        usable_scores = scores_only
+
+    median_score = statistics.median(usable_scores)
+
+    # Sort for display
     team_scores.sort(key=lambda x: x[1], reverse=True)
 
     lines = []
     for name, score in team_scores:
-        mark = "✅" if score >= median_score else "❌"
+        # If median > 0, zero scores should be below-median (❌)
+        mark = "✅" if score >= median_score and (median_score == 0 or score > 0) else "❌"
         lines.append(f"{name}: {score:.1f} {mark}")
+
     return median_score, "\n".join(lines)
+
 
 def build_message() -> str:
     league = League(league_id=LEAGUE_ID, year=YEAR, espn_s2=ESPN_S2, swid=SWID)
