@@ -2,43 +2,33 @@ name: Fantasy Median Bot
 
 on:
   schedule:
-    # SUNDAYS — 10:00 AM ET
-    - cron: '0 14 * * 0'   # 10:00 AM EDT (UTC-4)
-    - cron: '0 15 * * 0'   # 10:00 AM EST (UTC-5)
-
-    # SUNDAYS — 4:00 PM ET
-    - cron: '0 20 * * 0'   # 4:00 PM EDT
-    - cron: '0 21 * * 0'   # 4:00 PM EST
-
-    # SUNDAYS — 8:00 PM ET -> Monday UTC
-    - cron: '0 0 * * 1'    # 8:00 PM EDT (Mon 00:00 UTC)
-    - cron: '0 1 * * 1'    # 8:00 PM EST (Mon 01:00 UTC)
-
-    # SUNDAYS — 11:30 PM ET -> Monday UTC
-    - cron: '30 3 * * 1'   # 11:30 PM EDT (Mon 03:30 UTC)
-    - cron: '30 4 * * 1'   # 11:30 PM EST (Mon 04:30 UTC)
-
-    # MONDAYS — 9:30 PM ET -> Tuesday UTC
-    - cron: '30 1 * * 2'   # 9:30 PM EDT (Tue 01:30 UTC)
-    # (EDT for 10:30 PM equals EST for 9:30 PM; covered below by 30 2 * * 2)
-
-    # MONDAYS — 10:30 PM ET -> Tuesday UTC
-    - cron: '30 2 * * 2'   # 10:30 PM EDT (or 9:30 PM EST)
-    - cron: '30 3 * * 2'   # 10:30 PM EST (Tue 03:30 UTC)
-
-    # MONDAYS — 11:59 PM ET -> Tuesday UTC
-    - cron: '59 3 * * 2'   # 11:59 PM EDT (Tue 03:59 UTC)
-    - cron: '59 4 * * 2'   # 11:59 PM EST (Tue 04:59 UTC)
-
-    # THURSDAYS — 11:59 PM ET -> Friday UTC
-    - cron: '59 3 * * 5'   # 11:59 PM EDT (Fri 03:59 UTC)
-    - cron: '59 4 * * 5'   # 11:59 PM EST (Fri 04:59 UTC)
+    - cron: '0 14 * * 0'
+    - cron: '0 15 * * 0'
+    - cron: '0 20 * * 0'
+    - cron: '0 21 * * 0'
+    - cron: '0 0 * * 1'
+    - cron: '0 1 * * 1'
+    - cron: '30 3 * * 1'
+    - cron: '30 4 * * 1'
+    - cron: '30 1 * * 2'
+    - cron: '30 2 * * 2'
+    - cron: '30 3 * * 2'
+    - cron: '59 3 * * 2'
+    - cron: '59 4 * * 2'
+    - cron: '59 3 * * 5'
+    - cron: '59 4 * * 5'
 
   workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    env:
+      LEAGUE_ID: ${{ secrets.LEAGUE_ID }}
+      YEAR: ${{ secrets.YEAR }}
+      SWID: ${{ secrets.ESPN_SWID }}
+      ESPN_S2: ${{ secrets.ESPN_S2 }}
+      GROUPME_BOT_ID: ${{ secrets.GROUPME_BOT_ID }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
