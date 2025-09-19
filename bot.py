@@ -8,21 +8,18 @@ import requests
 from espn_api.football import League
 
 # ----------------------------
-# Config (kept as literals, per your request)
+# Config (use secrets for sensitive values)
 # ----------------------------
 LEAGUE_ID = 2075760555
 YEAR = 2025
-SWID = "{AFDF1C35-C3FF-4E8F-AD85-63D85CCE88ED}"
-ESPN_S2 = "AECFFuqpnKkwgOlcCijqY71viRNLKIOsWVRu4cRQKbzfnIrJbf0jkAZ9x3csHAQz03U0D%2F9oCeXuchZVZa0M6Z4VQSYiFUwr7%2F5rrE1LZ6O6ySVeWsLC7xTsx%2FlDvw83DfRsffDlAaNdichxwCO2SY274IL0Cmlq68Ght9P8cekf4qid20hElhBWHC4KXdzVfPrh%2BX9tZIKqfxmtBtgC4Qf4m%2BueKsogUnTADTF672fbxy8G3LcurbepB1YLOehRokBXx9alTK3qS6b19hFlMOI5ch%2Bzaax2GIbYiitGkYDYXb%2B1Iatss9pwd1aSkt87XyI%3D"
-GROUPME_BOT_ID = "b63cecb7e82d210797808b6f11"
 
-# Optional controls
-TEST_MODE = False          # If True, just print the message instead of posting
-FORCE_WEEK = None          # Set an int to override ESPN current_week (for testing)
+SWID = os.getenv("ESPN_SWID")           # from GitHub Actions secret
+ESPN_S2 = os.getenv("ESPN_S2")          # from GitHub Actions secret
+GROUPME_BOT_ID = os.getenv("GROUPME_BOT_ID")  # from GitHub Actions secret
 
-# ----------------------------
-# Timezone (for display only)
-# ----------------------------
+TEST_MODE = False
+FORCE_WEEK = None
+
 EASTERN = pytz.timezone("US/Eastern")
 
 # ----------------------------
@@ -69,7 +66,6 @@ def fetch_scores(league: League, projected: bool = False):
             h = float(b.home_score or 0.0)
             a = float(b.away_score or 0.0)
 
-        # Team names
         home_name = getattr(b.home_team, "team_name", "Home")
         away_name = getattr(b.away_team, "team_name", "Away")
 
@@ -77,8 +73,6 @@ def fetch_scores(league: League, projected: bool = False):
         team_scores.append((away_name, a))
 
     return week, team_scores
-
-import statistics
 
 def format_current_scores(team_scores):
     """Current/live scores:
@@ -91,32 +85,24 @@ def format_current_scores(team_scores):
     scores = [s for _, s in team_scores]
     zero_count = sum(1 for s in scores if s == 0)
     total = len(scores)
-
-    # Zero-heavy slate: half or more of teams at zero, or explicitly >=6
     zero_heavy = zero_count >= 6 or zero_count >= total / 2
 
     team_scores_sorted = sorted(team_scores, key=lambda x: x[1], reverse=True)
 
     if zero_heavy:
         median_score = 0.0
-        lines = []
-        for name, score in team_scores_sorted:
-            mark = "✅" if score > 0 else "❌"
-            lines.append(f"{name}: {score:.1f} {mark}")
+        lines = [f"{n}: {s:.1f} {'✅' if s > 0 else '❌'}" for n, s in team_scores_sorted]
         return median_score, "\n".join(lines)
     else:
-        # Use non-zero scores to compute a more meaningful median
         non_zero = [s for s in scores if s > 0]
-        usable = non_zero if non_zero else scores  # fallback if somehow all zero
+        usable = non_zero if non_zero else scores
         median_score = statistics.median(usable)
 
         lines = []
         for name, score in team_scores_sorted:
-            # Treat 0 as below-median when median > 0
             mark = "✅" if (score >= median_score and (median_score == 0 or score > 0)) else "❌"
             lines.append(f"{name}: {score:.1f} {mark}")
         return median_score, "\n".join(lines)
-
 
 def format_projected_scores(team_scores):
     """Projected scores: standard median of all values."""
@@ -125,11 +111,7 @@ def format_projected_scores(team_scores):
     scores_only = [s for _, s in team_scores]
     median_score = statistics.median(scores_only)
     team_scores_sorted = sorted(team_scores, key=lambda x: x[1], reverse=True)
-
-    lines = []
-    for name, score in team_scores_sorted:
-        mark = "✅" if score >= median_score else "❌"
-        lines.append(f"{name}: {score:.1f} {mark}")
+    lines = [f"{n}: {s:.1f} {'✅' if s >= median_score else '❌'}" for n, s in team_scores_sorted]
     return median_score, "\n".join(lines)
 
 def build_message() -> str:
@@ -161,8 +143,7 @@ def main():
     now_et = datetime.now(EASTERN)
     print(
         f"Start (ET)={now_et:%Y-%m-%d %I:%M:%S %p %Z}  "
-        f"BotID={_mask(GROUPME_BOT_ID)}  "
-        f"League={LEAGUE_ID}  Year={YEAR}  TEST_MODE={TEST_MODE}"
+        f"BotID={_mask(GROUPME_BOT_ID)}  League={LEAGUE_ID}  Year={YEAR}  TEST_MODE={TEST_MODE}"
     )
 
     try:
