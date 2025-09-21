@@ -13,9 +13,20 @@ from espn_api.football import League
 LEAGUE_ID = 2075760555
 YEAR = 2025
 
-SWID = os.getenv("ESPN_SWID")           # from GitHub Actions secret
-ESPN_S2 = os.getenv("ESPN_S2")          # from GitHub Actions secret
-GROUPME_BOT_ID = os.getenv("GROUPME_BOT_ID")  # from GitHub Actions secret
+def require_secret(name: str) -> str:
+    v = os.getenv(name)
+    if not v or not v.strip():
+        raise RuntimeError(
+            f"Missing required secret: {name}. "
+            f"Set it in GitHub → Settings → Secrets and variables → Actions, "
+            f"and pass it into the workflow env."
+        )
+    return v.strip()
+
+# Expect these **exact** env var names
+SWID = require_secret("ESPN_SWID")           # keep the {...} braces
+ESPN_S2 = require_secret("ESPN_S2")
+GROUPME_BOT_ID = require_secret("GROUPME_BOT_ID")
 
 TEST_MODE = False
 FORCE_WEEK = None
@@ -26,13 +37,11 @@ EASTERN = pytz.timezone("US/Eastern")
 # Helpers
 # ----------------------------
 def _mask(s: str, show=6) -> str:
-    """Mask long tokens in logs."""
     if not s:
         return "<empty>"
     return s[:show] + "…" if len(s) > show else s
 
 def post_to_groupme(text: str, retries: int = 2, backoff: float = 1.5):
-    """Post a message to GroupMe with logging and tiny retry."""
     url = "https://api.groupme.com/v3/bots/post"
     payload = {"bot_id": GROUPME_BOT_ID, "text": text}
 
@@ -52,8 +61,7 @@ def post_to_groupme(text: str, retries: int = 2, backoff: float = 1.5):
             time.sleep(backoff * attempt)
 
 def fetch_scores(league: League, projected: bool = False):
-    """Get current or projected team scores using BoxScore objects."""
-    week = FORCE_WEEK if FORCE_WEEK is not None else league.current_week
+    week = FORCE_WEEK if FORCE_WEEK is not None else getattr(league, "current_week", None)
     if not week:
         return week, []
 
@@ -75,10 +83,6 @@ def fetch_scores(league: League, projected: bool = False):
     return week, team_scores
 
 def format_current_scores(team_scores):
-    """Current/live scores:
-       - If 6+ zeros: median=0.0 and ✅ means score > 0
-       - Else: median computed from non-zero scores; 0 is below-median
-    """
     if not team_scores:
         return 0.0, "No matchups found."
 
@@ -105,7 +109,6 @@ def format_current_scores(team_scores):
         return median_score, "\n".join(lines)
 
 def format_projected_scores(team_scores):
-    """Projected scores: standard median of all values."""
     if not team_scores:
         return 0.0, "No matchups found."
     scores_only = [s for _, s in team_scores]
@@ -115,10 +118,15 @@ def format_projected_scores(team_scores):
     return median_score, "\n".join(lines)
 
 def build_message() -> str:
-    league = League(league_id=LEAGUE_ID, year=YEAR, espn_s2=ESPN_S2, swid=SWID)
-
-    week_cur, current_scores = fetch_scores(league, projected=False)
-    week_proj, projected_scores = fetch_scores(league, projected=True)
+    try:
+        league = League(league_id=LEAGUE_ID, year=YEAR, espn_s2=ESPN_S2, swid=SWID)
+        week_cur, current_scores = fetch_scores(league, projected=False)
+        week_proj, projected_scores = fetch_scores(league, projected=True)
+    except Exception as e:
+        raise RuntimeError(
+            "Failed to load ESPN league data. Likely causes: invalid/missing ESPN_S2/ESPN_SWID, "
+            "expired cookies, wrong LEAGUE_ID/YEAR, or ESPN API change."
+        ) from e
 
     week = week_cur or week_proj
     now_eastern_str = datetime.now(EASTERN).strftime("%a %I:%M %p %Z")
@@ -143,7 +151,8 @@ def main():
     now_et = datetime.now(EASTERN)
     print(
         f"Start (ET)={now_et:%Y-%m-%d %I:%M:%S %p %Z}  "
-        f"BotID={_mask(GROUPME_BOT_ID)}  League={LEAGUE_ID}  Year={YEAR}  TEST_MODE={TEST_MODE}"
+        f"BotID={_mask(GROUPME_BOT_ID)}  League={LEAGUE_ID}  Year={YEAR}  TEST_MODE={TEST_MODE}  "
+        f"Secrets: SWID={_mask(SWID)} ESPN_S2={_mask(ESPN_S2)}"
     )
 
     try:
@@ -154,11 +163,11 @@ def main():
             post_to_groupme(msg)
             print("Message posted successfully.")
     except Exception as e:
-        err = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
-        print(f"Bot error: {err}")
+        tb = traceback.format_exc()
+        print(f"Bot error: {type(e).__name__}: {e}\n{tb}")
         if not TEST_MODE:
             try:
-                post_to_groupme(f"Bot error: {e}")
+                post_to_groupme(f"Bot error: {e}\n(See GitHub Actions logs for details.)")
             except Exception as e2:
                 print(f"Also failed to notify GroupMe: {e2}")
 
