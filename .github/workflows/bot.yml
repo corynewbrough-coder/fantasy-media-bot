@@ -24,7 +24,7 @@ jobs:
   run-bot:
     runs-on: ubuntu-latest
     env:
-      SWID: ${{ secrets.ESPN_SWID }}
+      ESPN_SWID: ${{ secrets.ESPN_SWID }}     # <-- match the code
       ESPN_S2: ${{ secrets.ESPN_S2 }}
       GROUPME_BOT_ID: ${{ secrets.GROUPME_BOT_ID }}
     steps:
@@ -39,8 +39,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests pytz espn-api
+          pip install requests pytz "espn-api==0.44.0"
 
       - name: Run Fantasy Median Bot
         run: python bot.py
-
