@@ -1,9 +1,0 @@
-name: Schedule Check
-on:
-  schedule:
-    - cron: '*/15 * * * *'
-jobs:
-  ping:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "cron is being parsed"
